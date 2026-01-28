@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import emailjs from '@emailjs/browser'
 import './App.css'
 import video1 from './assets/VID-20250916-WA0003(1).mp4'
 import video2 from './assets/VID-20251113-WA0028.mp4'
@@ -15,6 +16,23 @@ function App() {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const productRefs = useRef<(HTMLDivElement | null)[]>([])
   const animationRefs = useRef<(HTMLDivElement | null)[]>([])
+  
+  // Contact form state
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    message: ''
+  })
+  const [formStatus, setFormStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState('')
+
+  // Initialize EmailJS
+  useEffect(() => {
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+    if (publicKey && publicKey !== 'your_public_key') {
+      emailjs.init(publicKey)
+    }
+  }, [])
 
   useEffect(() => {
     const observerOptions = {
@@ -803,17 +821,149 @@ function App() {
           <h2 className="section-title">Get In Touch</h2>
           <p className="section-subtitle">Let's collaborate and create something amazing together</p>
           <div className="contact-content-centered">
-            <form className="contact-form" onSubmit={(e) => { e.preventDefault(); alert('Message sent! (This is a demo)'); }}>
+            <form 
+              className="contact-form" 
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setFormStatus('loading')
+                setErrorMessage('')
+
+                try {
+                  // EmailJS configuration - these will be set via environment variables
+                  const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'your_service_id'
+                  const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'your_template_id'
+                  const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'your_public_key'
+
+                  // Debug: Log the values (remove in production)
+                  console.log('EmailJS Config:', { serviceId, templateId, publicKey: publicKey ? '***' + publicKey.slice(-4) : 'missing' })
+
+                  // Check if EmailJS is configured
+                  if (serviceId === 'your_service_id' || templateId === 'your_template_id' || publicKey === 'your_public_key') {
+                    throw new Error('EmailJS is not configured. Please set up your environment variables and restart the dev server.')
+                  }
+
+                  // Ensure EmailJS is initialized with the public key
+                  if (publicKey) {
+                    emailjs.init(publicKey)
+                  }
+
+                  // Send email using EmailJS
+                  await emailjs.send(
+                    serviceId,
+                    templateId,
+                    {
+                      from_name: formData.name,
+                      from_email: formData.email,
+                      message: formData.message,
+                      to_email: 'mmoupriyabiswas53@gmail.com',
+                      reply_to: formData.email,
+                    },
+                    publicKey
+                  )
+
+                  setFormStatus('success')
+                  setFormData({ name: '', email: '', message: '' })
+                  
+                  // Reset success message after 5 seconds
+                  setTimeout(() => {
+                    setFormStatus('idle')
+                  }, 5000)
+                } catch (error: any) {
+                  console.error('Email sending error:', error)
+                  setFormStatus('error')
+                  
+                  // Provide more specific error messages
+                  let errorMsg = 'Failed to send message. Please try again later.'
+                  
+                  if (error?.text) {
+                    // EmailJS specific error
+                    if (error.text === 'Account not found') {
+                      errorMsg = 'EmailJS account not found. Please check your Public Key, Service ID, and Template ID in the .env file.'
+                    } else if (error.text.includes('Invalid')) {
+                      errorMsg = `EmailJS error: ${error.text}. Please verify your Service ID and Template ID.`
+                    } else {
+                      errorMsg = `EmailJS error: ${error.text}`
+                    }
+                  } else if (error instanceof Error) {
+                    errorMsg = error.message
+                  }
+                  
+                  setErrorMessage(errorMsg)
+                  
+                  // Reset error message after 5 seconds
+                  setTimeout(() => {
+                    setFormStatus('idle')
+                    setErrorMessage('')
+                  }, 5000)
+                }
+              }}
+            >
               <div className="form-group">
-                <input type="text" placeholder="Your Name" required />
+                <input 
+                  type="text" 
+                  placeholder="Your Name" 
+                  required 
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  disabled={formStatus === 'loading'}
+                />
               </div>
               <div className="form-group">
-                <input type="email" placeholder="Your Email" required />
+                <input 
+                  type="email" 
+                  placeholder="Your Email" 
+                  required 
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  disabled={formStatus === 'loading'}
+                />
               </div>
               <div className="form-group">
-                <textarea placeholder="Your Message" rows={5} required></textarea>
+                <textarea 
+                  placeholder="Your Message" 
+                  rows={5} 
+                  required
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  disabled={formStatus === 'loading'}
+                ></textarea>
               </div>
-              <button type="submit" className="btn btn-primary">Send Message</button>
+              
+              {formStatus === 'success' && (
+                <div className="form-message form-success">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  <span>Message sent successfully! I'll get back to you soon.</span>
+                </div>
+              )}
+              
+              {formStatus === 'error' && (
+                <div className="form-message form-error">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                  <span>{errorMessage || 'Failed to send message. Please try again.'}</span>
+                </div>
+              )}
+              
+              <button 
+                type="submit" 
+                className="btn btn-primary"
+                disabled={formStatus === 'loading'}
+              >
+                {formStatus === 'loading' ? (
+                  <>
+                    <span className="button-spinner"></span>
+                    Sending...
+                  </>
+                ) : (
+                  'Send Message'
+                )}
+              </button>
             </form>
           </div>
         </div>
